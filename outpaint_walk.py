@@ -10,15 +10,90 @@ Original file is located at
 ####################
 ######## TO DO: Change and Include for GitHub Final Submission
 ####################
-# Testing version control for py exported file
+
+# Trying to add a diffusion walk
+# I'm not sure this will work from the Keras example as they use the Keras Stable Diffsuion API
+# I will rather try to use the Keras stable diffusion in this project
 
 # Reference
 # 1. Outpainting I - Controlnet version. Url: https://huggingface.co/blog/OzzyGT/outpainting-controlnet
+# 2. A walk through latent space with Stable Diffusion. Url: https://keras.io/examples/generative/random_walks_with_stable_diffusion/
 
 # Commented out IPython magic to ensure Python compatibility.
 # Correct directory path for project
 ### cd error: https://chatgpt.com/share/6a31a9ad-4c68-83ed-939b-93ad436f48b8
 # %cd /content/drive/MyDrive/2026/EMI/outpaint-hug
+
+# Install Keras
+# 2:
+!pip install keras-cv --upgrade --quiet
+
+# Add Keras & Keras Stable Diffusion Model
+# 2:
+import keras_cv
+import keras
+import matplotlib.pyplot as plt
+from keras import ops
+import numpy as np
+import math
+from PIL import Image
+
+# Enable mixed precision
+# (only do this if you have a recent NVIDIA GPU)
+keras.mixed_precision.set_global_policy("mixed_float16")
+
+# Instantiate the Stable Diffusion model
+model = keras_cv.models.StableDiffusion(jit_compile=True)
+
+# 2: Interpolating between text prompts
+
+prompt_1 = "A watercolor painting of a Golden Retriever at the beach"
+prompt_2 = "A still life DSLR photo of a bowl of fruit"
+interpolation_steps = 5
+
+encoding_1 = ops.squeeze(model.encode_text(prompt_1))
+encoding_2 = ops.squeeze(model.encode_text(prompt_2))
+
+interpolated_encodings = ops.linspace(encoding_1, encoding_2, interpolation_steps)
+
+# Show the size of the latent manifold
+print(f"Encoding shape: {encoding_1.shape}")
+
+#2: "Once we've interpolated the encodings, we can generate images from each point"
+seed = 12345
+noise = keras.random.normal((512 // 8, 512 // 8, 4), seed=seed)
+
+images = model.generate_image(
+    interpolated_encodings,
+    batch_size=interpolation_steps,
+    diffusion_noise=noise,
+)
+
+# 2: Export as Gif
+
+def export_as_gif(filename, images, frames_per_second=10, rubber_band=False):
+    if rubber_band:
+        images += images[2:-1][::-1]
+    images[0].save(
+        filename,
+        save_all=True,
+        append_images=images[1:],
+        duration=1000 // frames_per_second,
+        loop=0,
+    )
+
+
+export_as_gif(
+    "doggo-and-fruit-5.gif",
+    [Image.fromarray(img) for img in images],
+    frames_per_second=2,
+    rubber_band=True,
+)
+
+# 2: If you're running in Colab, you can view your own GIFs by running
+
+from IPython.display import Image as IImage
+IImage("doggo-and-fruit-5.gif")
 
 #1: "this method only works when you can paint a white mask around the area you want to expand
 #1: "With this method it is not necessary to prepare the area beforehand
