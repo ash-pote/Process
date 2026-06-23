@@ -13,6 +13,7 @@ Original file is located at
 
 # I created a 'latent' walk based on code from ChatGPT
 # 3. ChatGPT log Url: https://chatgpt.com/share/6a31c842-dec4-83eb-9b89-150aed089c89
+# 4: ChatGPT https://chatgpt.com/share/6a17139b-3688-83eb-be26-68790e67b334
 
 # Commented out IPython magic to ensure Python compatibility.
 # Correct directory path for project
@@ -44,14 +45,49 @@ controlnet = ControlNetModel.from_pretrained(
     "destitech/controlnet-inpaint-dreamer-sdxl", torch_dtype=torch.float16, variant="fp16"
 )
 
+# 1:
+pipeline = StableDiffusionXLControlNetPipeline.from_pretrained(
+    "RunDiffusion/Juggernaut-XL-v9",
+    torch_dtype=torch.float16,
+    variant="fp16",
+    controlnet=controlnet,
+).to("cuda")
+
 ### 1: "[Controlnet Model is] easy to use, you just need to paint white the parts you want to replace"
 ### 1: "what I'm going to do is paint white the transparent part of the image.""
 
 # 1: To paint white the alpha channel of an image I use this code"
 ### Fetches an image with an edited transparent area illustrating what needs to be inpainted
-response = requests.get("https://huggingface.co/datasets/OzzyGT/testing-resources/resolve/main/outpainting/313891870-adb6dc80-2e9e-420c-bac3-f93e6de8d06b.png?download=true")
 
-control_image = Image.open(BytesIO(response.content))
+# 4: Previously used code from a different project
+input_folder = '/content/drive/MyDrive/2026/EMI/outpaint-hug/Hockney-Collage-Pieces'
+
+pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+pipeline.scheduler.config.use_karras_sigmas = True
+
+# adding ip adapter
+pipeline.load_ip_adapter(
+    "h94/IP-Adapter",
+    subfolder="sdxl_models",
+    weight_name="ip-adapter-plus_sdxl_vit-h.safetensors",
+    image_encoder_folder="models/image_encoder",
+)
+pipeline.set_ip_adapter_scale(0.4)
+
+
+
+collage_image = Image.open(f'{input_folder}/collage_cutout_original_image.png')
+ip_collage_image = Image.new("RGBA", collage_image.size, "WHITE")
+
+mask = Image.open(f'{input_folder}/collage_mask_ip.png')
+ip_mask = Image.new("RGBA", mask.size, "WHITE")
+
+processor = IPAdapterMaskProcessor()
+ip_masks = processor.preprocess(ip_mask, height=1024, width=1024)
+
+response = ip_collage_image
+
+control_image = collage_image
 new_controlnet_image = Image.new("RGBA", control_image.size, "WHITE")
 new_controlnet_image.alpha_composite(control_image)
 
@@ -64,20 +100,12 @@ new_controlnet_image.alpha_composite(control_image)
 ###. for inpainting and complex images is better to use lower values around 0.5
 
 # 1: Prompts
-prompt = "high quality photo of a wolf playing basketball, highly detailed, professional, dramatic ambient light, cinematic, dynamic background, focus"
+prompt = "Continuation of the scene. Reveal more of the dog biscuit box. Sharp focus, seamless continuation.”"
 negative_prompt = ""
 
 # 1:
 seed = random.randint(0, 2**32 - 1)
 generator = torch.Generator(device="cpu").manual_seed(seed)
-
-# 1:
-pipeline = StableDiffusionXLControlNetPipeline.from_pretrained(
-    "RunDiffusion/Juggernaut-XL-v9",
-    torch_dtype=torch.float16,
-    variant="fp16",
-    controlnet=controlnet,
-).to("cuda")
 
 # 3:
 
@@ -92,12 +120,14 @@ latent1 = pipeline(
     negative_prompt=negative_prompt,
     height=1024,
     width=1024,
-    guidance_scale=6.5,
+    guidance_scale=0.5,
     num_inference_steps=25,
     image=new_controlnet_image,
-    controlnet_conditioning_scale=0.9,
+    controlnet_conditioning_scale=0.2,
     control_guidance_end=0.9,
     generator=g1,
+    ip_adapter_image=ip_collage_image,
+    cross_attention_kwargs={"ip_adapter_masks": ip_masks},
     output_type="latent",
 ).images[0]
 
@@ -112,8 +142,12 @@ latent2 = pipeline(
     controlnet_conditioning_scale=0.9,
     control_guidance_end=0.9,
     generator=g2,
+    ip_adapter_image=ip_collage_image,
+    cross_attention_kwargs={"ip_adapter_masks": ip_masks},
     output_type="latent",
 ).images[0]
+
+pipeline_img2img = AutoPipelineForImage2Image.from_pipe(pipeline, controlnet=None)
 
 # 3:
 def lerp(a, b, t):
@@ -126,20 +160,21 @@ frames = []
 for i in range(10):
     t = i / 59
 
-    latent = lerp(latent1, latent2, t)
+    latents = lerp(latent1, latent2, t)
 
-    image = pipeline(
+    image = pipeline_img2img(
         prompt=prompt,
         negative_prompt=negative_prompt,
         height=1024,
         width=1024,
-        guidance_scale=6.5,
+        guidance_scale=6.0,
         num_inference_steps=25,
         generator=generator,
-        image=new_controlnet_image,
-        controlnet_conditioning_scale=0.9,
-        control_guidance_end=0.9,
-    ).images[0]
+        image=latents,
+        strength=0.2,
+        ip_adapter_image=ip_collage_image,
+        cross_attention_kwargs={"ip_adapter_masks": ip_masks},
+        ).images[0]
 
     frames.append(image)
 
@@ -148,7 +183,7 @@ from PIL import Image
 # frames = [PIL.Image, PIL.Image, ...]
 
 frames[0].save(
-    "latent_walk.gif",
+    "biscuit_2.gif",
     save_all=True,
     append_images=frames[1:],
     duration=100,  # milliseconds per frame
@@ -156,4 +191,4 @@ frames[0].save(
 )
 
 from IPython.display import Image as IImage
-IImage("latent_walk.gif")
+IImage("biscuit_2.gif")
