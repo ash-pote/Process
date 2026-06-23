@@ -72,14 +72,14 @@ pipeline.load_ip_adapter(
     weight_name="ip-adapter-plus_sdxl_vit-h.safetensors",
     image_encoder_folder="models/image_encoder",
 )
-pipeline.set_ip_adapter_scale(0.4)
+pipeline.set_ip_adapter_scale(0.1)
 
 
 
 collage_image = Image.open(f'{input_folder}/collage_cutout_original_image.png')
 ip_collage_image = Image.new("RGBA", collage_image.size, "WHITE")
 
-mask = Image.open(f'{input_folder}/collage_mask_ip.png')
+mask = Image.open(f'{input_folder}/full_image.png')
 ip_mask = Image.new("RGBA", mask.size, "WHITE")
 
 processor = IPAdapterMaskProcessor()
@@ -100,7 +100,7 @@ new_controlnet_image.alpha_composite(control_image)
 ###. for inpainting and complex images is better to use lower values around 0.5
 
 # 1: Prompts
-prompt = "Continuation of the scene. Reveal more of the dog biscuit box. Sharp focus, seamless continuation.”"
+prompt = "High quality"
 negative_prompt = ""
 
 # 1:
@@ -120,10 +120,10 @@ latent1 = pipeline(
     negative_prompt=negative_prompt,
     height=1024,
     width=1024,
-    guidance_scale=0.5,
+    guidance_scale=6.5,
     num_inference_steps=25,
     image=new_controlnet_image,
-    controlnet_conditioning_scale=0.2,
+    controlnet_conditioning_scale=0.9,
     control_guidance_end=0.9,
     generator=g1,
     ip_adapter_image=ip_collage_image,
@@ -167,7 +167,7 @@ for i in range(10):
         negative_prompt=negative_prompt,
         height=1024,
         width=1024,
-        guidance_scale=6.0,
+        guidance_scale=3.0,
         num_inference_steps=25,
         generator=generator,
         image=latents,
@@ -183,7 +183,7 @@ from PIL import Image
 # frames = [PIL.Image, PIL.Image, ...]
 
 frames[0].save(
-    "biscuit_2.gif",
+    "biscuit_q0.gif",
     save_all=True,
     append_images=frames[1:],
     duration=100,  # milliseconds per frame
@@ -191,4 +191,4 @@ frames[0].save(
 )
 
 from IPython.display import Image as IImage
-IImage("biscuit_2.gif")
+IImage("biscuit_q0.gif")
