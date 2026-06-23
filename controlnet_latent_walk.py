@@ -72,15 +72,13 @@ pipeline.load_ip_adapter(
     weight_name="ip-adapter-plus_sdxl_vit-h.safetensors",
     image_encoder_folder="models/image_encoder",
 )
-pipeline.set_ip_adapter_scale(0.1)
-
-
+pipeline.set_ip_adapter_scale(0.7)
 
 collage_image = Image.open(f'{input_folder}/collage_cutout_original_image.png')
-ip_collage_image = Image.new("RGBA", collage_image.size, "WHITE")
+ip_collage_image = collage_image
 
-mask = Image.open(f'{input_folder}/full_image.png')
-ip_mask = Image.new("RGBA", mask.size, "WHITE")
+mask = Image.open(f'{input_folder}/more_img.png')
+ip_mask = mask
 
 processor = IPAdapterMaskProcessor()
 ip_masks = processor.preprocess(ip_mask, height=1024, width=1024)
@@ -100,7 +98,7 @@ new_controlnet_image.alpha_composite(control_image)
 ###. for inpainting and complex images is better to use lower values around 0.5
 
 # 1: Prompts
-prompt = "High quality"
+prompt = "Photorealistic continuation of the scene. Reveal more of the dog biscuit box from a consistent camera viewpoint, showing the left and right sides and top where appropriate. Realistic perspective, natural lighting, sharp focus, seamless continuation"
 negative_prompt = ""
 
 # 1:
@@ -167,14 +165,14 @@ for i in range(10):
         negative_prompt=negative_prompt,
         height=1024,
         width=1024,
-        guidance_scale=3.0,
+        guidance_scale=2.5,
         num_inference_steps=25,
         generator=generator,
         image=latents,
-        strength=0.2,
+        strength=0.9,
         ip_adapter_image=ip_collage_image,
         cross_attention_kwargs={"ip_adapter_masks": ip_masks},
-        ).images[0]
+    ).images[0]
 
     frames.append(image)
 
@@ -183,12 +181,12 @@ from PIL import Image
 # frames = [PIL.Image, PIL.Image, ...]
 
 frames[0].save(
-    "biscuit_q0.gif",
+    "biscuit_14.gif",
     save_all=True,
     append_images=frames[1:],
-    duration=100,  # milliseconds per frame
+    duration=250,  # milliseconds per frame
     loop=0,        # 0 = infinite loop
 )
 
 from IPython.display import Image as IImage
-IImage("biscuit_q0.gif")
+IImage("biscuit_14.gif", width=300)
